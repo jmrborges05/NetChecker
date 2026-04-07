@@ -26,9 +26,14 @@ public struct NetCheckerTrafficUI_TrafficDetailView: View {
             // Tab picker
             Picker("View", selection: $selectedTab) {
                 Text("Request").tag(0)
-                Text("Response").tag(1)
                 
-                if !record.webSocketMessages.isEmpty || record.url.scheme?.lowercased().starts(with: "ws") == true {
+                let isWebSocket = !record.webSocketMessages.isEmpty || record.url.scheme?.lowercased().starts(with: "ws") == true
+                
+                if !isWebSocket {
+                    Text("Response").tag(1)
+                }
+                
+                if isWebSocket {
                     Text("WebSocket").tag(4)
                 }
                 

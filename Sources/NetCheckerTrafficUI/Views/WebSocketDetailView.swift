@@ -2,32 +2,46 @@ import SwiftUI
 import NetCheckerTrafficCore
 
 public struct NetCheckerTrafficUI_WebSocketDetailView: View {
-    let record: TrafficRecord
+    @State private var record: TrafficRecord
+    let initialRecordId: UUID
+    
+    // Timer that fires every 1 second
+    let timer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
     
     public init(record: TrafficRecord) {
-        self.record = record
+        self._record = State(initialValue: record)
+        self.initialRecordId = record.id
     }
     
     public var body: some View {
-        if record.webSocketMessages.isEmpty {
-            VStack {
-                Image(systemName: "network")
-                    .font(.system(size: 40))
-                    .foregroundColor(.secondary)
-                    .padding()
-                Text("No WebSocket messages captured")
-                    .font(.headline)
-                    .foregroundColor(.secondary)
+        Group {
+            if record.webSocketMessages.isEmpty {
+                VStack {
+                    Image(systemName: "network")
+                        .font(.system(size: 40))
+                        .foregroundColor(.secondary)
+                        .padding()
+                    Text("No WebSocket messages captured")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.gray.opacity(0.1))
+            } else {
+                List {
+                    ForEach(record.webSocketMessages) { message in
+                        WebSocketMessageRow(message: message)
+                    }
+                }
+                .listStyle(.plain)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.gray.opacity(0.1))
-        } else {
-            List {
-                ForEach(record.webSocketMessages) { message in
-                    WebSocketMessageRow(message: message)
+        }
+        .onReceive(timer) { _ in
+            if let updatedRecord = TrafficStore.shared.record(for: initialRecordId) {
+                if updatedRecord.webSocketMessages.count != record.webSocketMessages.count {
+                    self.record = updatedRecord
                 }
             }
-            .listStyle(.plain)
         }
     }
 }
