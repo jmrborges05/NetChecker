@@ -48,4 +48,36 @@ final class TrafficTests: XCTestCase {
         XCTAssertTrue(curl.contains("https://api.example.com/users"))
         XCTAssertTrue(curl.contains("Authorization"))
     }
+
+    @MainActor
+    func testWebSocketConnection() async throws {
+        TrafficStore.shared.clear()
+        TrafficInterceptor.shared.start(level: .basic)
+        
+        let url = URL(string: "wss://echo.websocket.org")!
+        let session = URLSession(configuration: .default)
+        let task = session.webSocketTask(with: url)
+        
+        task.resume()
+        
+        try await task.send(.string("Hello"))
+        let response = try await task.receive()
+        
+        print("Response: \(response)")
+        
+        // Let asynchronous store updates finish
+        try await Task.sleep(nanoseconds: 500_000_000)
+        
+        let records = TrafficStore.shared.records
+        XCTAssertFalse(records.isEmpty, "Should have created a traffic record")
+        
+        let wsRecord = records.first(where: { $0.request.url.absoluteString.contains("echo.websocket") })
+        XCTAssertNotNil(wsRecord, "Should find the WS record")
+        
+        if let wsRecord = wsRecord {
+            XCTAssertFalse(wsRecord.webSocketMessages.isEmpty, "Should have captured WebSocket messages")
+        }
+        
+        TrafficInterceptor.shared.stop()
+    }
 }

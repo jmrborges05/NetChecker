@@ -76,6 +76,18 @@ public final class NetCheckerURLProtocol: URLProtocol {
     // MARK: - URLProtocol Override
 
     public override class func canInit(with request: URLRequest) -> Bool {
+        print("URLProtocol checking: \(request.url?.absoluteString ?? "")")
+        print("Headers: \(request.allHTTPHeaderFields ?? [:])")
+        // Skip WebSockets (they are handled by WebSocketInspector swizzling)
+        if let scheme = request.url?.scheme?.lowercased(), scheme == "ws" || scheme == "wss" {
+            return false
+        }
+        
+        // URLSession converts ws/wss to http/https and adds Upgrade headers
+        if let upgrade = request.value(forHTTPHeaderField: "Upgrade")?.lowercased(), upgrade == "websocket" {
+            return false
+        }
+        
         // Skip already handled requests
         if URLProtocol.property(forKey: handledKey, in: request) != nil {
             return false

@@ -52,6 +52,15 @@ public final class WebSocketInspector {
     internal func handleTaskCreated(_ task: URLSessionWebSocketTask, url: URL?) {
         guard isSwizzled, let requestURL = url ?? task.currentRequest?.url else { return }
         
+        mapLock.lock()
+        let existingId = taskToRecordMap[task.taskIdentifier]
+        mapLock.unlock()
+        
+        if existingId != nil {
+            // Record already exists for this task, ignore duplicate
+            return
+        }
+        
         var request = URLRequest(url: requestURL)
         if let originalRequest = task.originalRequest {
             request = originalRequest
@@ -66,7 +75,9 @@ public final class WebSocketInspector {
     }
     
     internal func handleMessageSent(task: URLSessionWebSocketTask, message: AnyObject) {
-        guard let recordId = recordId(for: task) else { return }
+        guard let recordId = recordId(for: task) else {
+            return
+        }
         
         let typeInt = message.value(forKey: "type") as? Int ?? 1
         let type: WebSocketMessage.MessageType = typeInt == 0 ? .data : .string
@@ -158,12 +169,12 @@ public final class WebSocketInspector {
         let sendSel = NSSelectorFromString("sendMessage:completionHandler:")
         if let origSendMethod = class_getInstanceMethod(cls, sendSel) {
             let origSendImp = method_getImplementation(origSendMethod)
-            typealias SendFunction = @convention(c) (URLSessionWebSocketTask, Selector, AnyObject, @escaping (Error?) -> Void) -> Void
+            typealias SendFunction = @convention(c) (AnyObject, Selector, AnyObject, AnyObject) -> Void
             let origSendFunc = unsafeBitCast(origSendImp, to: SendFunction.self)
             
-            let sendBlock: @convention(block) (URLSessionWebSocketTask, AnyObject, @escaping (Error?) -> Void) -> Void = { slf, message, completion in
-                if WebSocketInspector.shared.isSwizzled {
-                    WebSocketInspector.shared.handleMessageSent(task: slf, message: message)
+            let sendBlock: @convention(block) (AnyObject, AnyObject, AnyObject) -> Void = { slf, message, completion in
+                if WebSocketInspector.shared.isSwizzled, let task = slf as? URLSessionWebSocketTask {
+                    WebSocketInspector.shared.handleMessageSent(task: task, message: message)
                 }
                 origSendFunc(slf, sendSel, message, completion)
             }
@@ -174,18 +185,24 @@ public final class WebSocketInspector {
         let recSel = NSSelectorFromString("receiveMessageWithCompletionHandler:")
         if let origRecMethod = class_getInstanceMethod(cls, recSel) {
             let origRecImp = method_getImplementation(origRecMethod)
-            typealias RecFunction = @convention(c) (URLSessionWebSocketTask, Selector, @escaping (AnyObject?, Error?) -> Void) -> Void
+            typealias HandlerBlock = @convention(block) (AnyObject?, NSError?) -> Void
+            typealias RecFunction = @convention(c) (AnyObject, Selector, HandlerBlock) -> Void
             let origRecFunc = unsafeBitCast(origRecImp, to: RecFunction.self)
             
-            let recBlock: @convention(block) (URLSessionWebSocketTask, @escaping (AnyObject?, Error?) -> Void) -> Void = { slf, completion in
-                origRecFunc(slf, recSel) { msg, error in
-                    if WebSocketInspector.shared.isSwizzled, let m = msg {
-                        WebSocketInspector.shared.handleMessageReceived(task: slf, message: m)
+            let recBlock: @convention(block) (AnyObject, AnyObject) -> Void = { slf, rawHandler in
+                let originalHandler = unsafeBitCast(rawHandler, to: HandlerBlock.self)
+                let wrapped: HandlerBlock = { messageObj, error in
+                    if WebSocketInspector.shared.isSwizzled, let task = slf as? URLSessionWebSocketTask {
+                        if let msg = messageObj {
+                            WebSocketInspector.shared.handleMessageReceived(task: task, message: msg)
+                        }
                     }
-                    completion(msg, error)
+                    originalHandler(messageObj, error)
                 }
+                origRecFunc(slf, recSel, wrapped)
             }
-            method_setImplementation(origRecMethod, imp_implementationWithBlock(recBlock))
+            let blockObj = unsafeBitCast(recBlock, to: AnyObject.self)
+            method_setImplementation(origRecMethod, imp_implementationWithBlock(blockObj))
         }
     }
 }
