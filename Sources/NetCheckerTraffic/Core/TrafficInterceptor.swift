@@ -83,10 +83,12 @@ public final class TrafficInterceptor: ObservableObject {
         switch configuration.level {
         case .basic:
             URLProtocol.registerClass(NetCheckerURLProtocol.self)
+            WebSocketInspector.shared.activate()
 
         case .full:
             URLProtocol.registerClass(NetCheckerURLProtocol.self)
             SessionSwizzler.shared.activate()
+            WebSocketInspector.shared.activate()
 
         case .manual:
             // User must manually add protocol to their sessions
@@ -121,6 +123,8 @@ public final class TrafficInterceptor: ObservableObject {
         if configuration.level == .full {
             SessionSwizzler.shared.deactivate()
         }
+        
+        WebSocketInspector.shared.deactivate()
 
         isRunning = false
         print("[NetChecker] Traffic interception stopped")

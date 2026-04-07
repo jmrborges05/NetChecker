@@ -4,6 +4,7 @@ import XCTest
 @MainActor
 final class TrafficTests: XCTestCase {
 
+    @MainActor
     func testTrafficStoreInitialization() {
         let store = TrafficStore.shared
         XCTAssertNotNil(store)
@@ -24,9 +25,14 @@ final class TrafficTests: XCTestCase {
     }
 
     func testContentTypeDetection() {
-        XCTAssertEqual(ContentType(mimeType: "application/json"), .json)
-        XCTAssertEqual(ContentType(mimeType: "text/html"), .html)
-        XCTAssertEqual(ContentType(mimeType: "text/plain"), .plainText)
+        let ctJson = ContentType(headers: ["Content-Type": "application/json"])
+        XCTAssertEqual(ctJson, .json)
+        
+        let ctHtml = ContentType(headers: ["Content-Type": "text/html"])
+        XCTAssertEqual(ctHtml, .html)
+        
+        let ctPlain = ContentType(headers: ["Content-Type": "text/plain"])
+        XCTAssertEqual(ctPlain, .plainText)
     }
 
     func testCURLFormatting() {

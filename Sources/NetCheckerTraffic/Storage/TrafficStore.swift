@@ -138,6 +138,13 @@ public final class TrafficStore: ObservableObject {
         }
     }
 
+    /// Добавить сообщение WebSocket
+    public func addWebSocketMessage(id: UUID, message: WebSocketMessage) {
+        update(id: id) { record in
+            record.addWebSocketMessage(message)
+        }
+    }
+
     /// Получить запись по ID
     public func record(for id: UUID) -> TrafficRecord? {
         guard let index = recordsById[id], index < records.count else { return nil }

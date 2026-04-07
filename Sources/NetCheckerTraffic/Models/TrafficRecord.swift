@@ -1,5 +1,36 @@
 import Foundation
 
+// MARK: - WebSocket
+
+/// Сообщение WebSocket
+public struct WebSocketMessage: Codable, Sendable, Hashable, Identifiable {
+    public let id: UUID
+    public let timestamp: Date
+    public let direction: Direction
+    public let type: MessageType
+    public let stringData: String?
+    public let binaryData: Data?
+
+    public enum Direction: String, Codable, Sendable, Hashable {
+        case sent
+        case received
+    }
+
+    public enum MessageType: Int, Codable, Sendable, Hashable {
+        case data = 0
+        case string = 1
+    }
+    
+    public init(id: UUID = UUID(), timestamp: Date = Date(), direction: Direction, type: MessageType, stringData: String? = nil, binaryData: Data? = nil) {
+        self.id = id
+        self.timestamp = timestamp
+        self.direction = direction
+        self.type = type
+        self.stringData = stringData
+        self.binaryData = binaryData
+    }
+}
+
 /// Состояние записи трафика
 public enum TrafficRecordState: Codable, Sendable, Hashable {
     case pending
@@ -82,6 +113,9 @@ public struct TrafficRecord: Codable, Sendable, Identifiable, Hashable {
 
     /// История редиректов
     public var redirects: [RedirectHop]
+
+    /// WebSocket сообщения
+    public var webSocketMessages: [WebSocketMessage] = []
 
     // MARK: - Initialization
 
@@ -254,6 +288,11 @@ public struct TrafficRecord: Codable, Sendable, Identifiable, Hashable {
     /// Добавить редирект
     public mutating func addRedirect(_ hop: RedirectHop) {
         redirects.append(hop)
+    }
+
+    /// Добавить сообщение WebSocket
+    public mutating func addWebSocketMessage(_ message: WebSocketMessage) {
+        webSocketMessages.append(message)
     }
 
     // MARK: - Private
