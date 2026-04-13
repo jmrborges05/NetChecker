@@ -1,10 +1,10 @@
 import Foundation
 
-/// URLProtocol для перехвата HTTP/HTTPS запросов
+/// URLProtocol for intercepting HTTP/HTTPS requests
 public final class NetCheckerURLProtocol: URLProtocol {
     // MARK: - Constants
 
-    /// Ключ для маркировки обработанных запросов
+    /// Key for marking already-handled requests
     private static let handledKey = "NetCheckerHandled"
 
     // MARK: - Thread-Safe State

@@ -1,36 +1,36 @@
 import Foundation
 import Combine
 
-/// Центральное хранилище записей трафика
+/// Central store for traffic records
 @MainActor
 public final class TrafficStore: ObservableObject {
     // MARK: - Singleton
 
-    /// Общий экземпляр
+    /// Shared instance
     public static let shared = TrafficStore()
 
     // MARK: - Published Properties
 
-    /// Все записи
+    /// All records
     @Published public private(set) var records: [TrafficRecord] = []
 
-    /// Количество записей (derived, no extra notification)
+    /// Record count (derived, no extra notification)
     public var count: Int { records.count }
 
-    /// Количество ошибок (derived, no extra notification)
+    /// Error count (derived, no extra notification)
     public var errorCount: Int { _errorCount }
     private var _errorCount: Int = 0
 
-    /// Количество pending запросов (derived, no extra notification)
+    /// Pending request count (derived, no extra notification)
     public var pendingCount: Int { _pendingCount }
     private var _pendingCount: Int = 0
 
     // MARK: - Configuration
 
-    /// Максимальное количество записей (ring buffer)
+    /// Maximum number of records (ring buffer)
     public var maxRecords: Int = 1000
 
-    /// Включена ли запись
+    /// Whether recording is enabled
     public var isRecordingEnabled: Bool = true
 
     // MARK: - Private Properties
@@ -40,18 +40,18 @@ public final class TrafficStore: ObservableObject {
 
     // MARK: - Callbacks
 
-    /// Callback при добавлении новой записи
+    /// Callback on new record added
     public var onNewRecord: ((TrafficRecord) -> Void)?
 
-    /// Callback при обновлении записи
+    /// Callback on record updated
     public var onRecordUpdated: ((TrafficRecord) -> Void)?
 
-    /// Callback при ошибке
+    /// Callback on error
     public var onError: ((TrafficRecord) -> Void)?
 
     // MARK: - Publishers
 
-    /// Publisher для изменений
+    /// Publisher for record changes
     public var recordsPublisher: AnyPublisher<[TrafficRecord], Never> {
         $records.eraseToAnyPublisher()
     }
@@ -64,11 +64,11 @@ public final class TrafficStore: ObservableObject {
 
     // MARK: - Public Methods
 
-    /// Добавить новую запись
+    /// Add a new record
     public func add(_ record: TrafficRecord) {
         guard isRecordingEnabled else { return }
 
-        // Ring buffer - удаляем старые записи
+        // Ring buffer — remove oldest records
         while records.count >= maxRecords {
             let removed = records.removeFirst()
             recordsById.removeValue(forKey: removed.id)
@@ -81,7 +81,7 @@ public final class TrafficStore: ObservableObject {
         onNewRecord?(record)
     }
 
-    /// Обновить существующую запись
+    /// Update an existing record
     public func update(_ record: TrafficRecord) {
         guard let index = recordsById[record.id], index < records.count else {
             // Record not found, add it
@@ -100,7 +100,7 @@ public final class TrafficStore: ObservableObject {
         }
     }
 
-    /// Обновить запись по ID
+    /// Update a record by ID
     public func update(id: UUID, with modifier: (inout TrafficRecord) -> Void) {
         guard let index = recordsById[id], index < records.count else { return }
 
@@ -119,7 +119,7 @@ public final class TrafficStore: ObservableObject {
         }
     }
 
-    /// Завершить запись с ответом
+    /// Complete a record with a response
     public func complete(
         id: UUID,
         response: ResponseData,
@@ -131,34 +131,34 @@ public final class TrafficStore: ObservableObject {
         }
     }
 
-    /// Пометить запись как неудавшуюся
+    /// Mark a record as failed
     public func fail(id: UUID, error: Error) {
         update(id: id) { record in
             record.fail(with: error)
         }
     }
 
-    /// Добавить сообщение WebSocket
+    /// Add a WebSocket message to a record
     public func addWebSocketMessage(id: UUID, message: WebSocketMessage) {
         update(id: id) { record in
             record.addWebSocketMessage(message)
         }
     }
 
-    /// Получить запись по ID
+    /// Get a record by ID
     public func record(for id: UUID) -> TrafficRecord? {
         guard let index = recordsById[id], index < records.count else { return nil }
         return records[index]
     }
 
-    /// Очистить все записи
+    /// Clear all records
     public func clear() {
         records.removeAll()
         recordsById.removeAll()
         updateCounts()
     }
 
-    /// Удалить записи по фильтру
+    /// Remove records matching a filter
     public func remove(matching filter: TrafficFilter) {
         let filtered = filter.apply(to: records)
         let idsToRemove = Set(filtered.map { $0.id })
@@ -168,7 +168,7 @@ public final class TrafficStore: ObservableObject {
         updateCounts()
     }
 
-    /// Удалить запись по ID
+    /// Remove a record by ID
     public func remove(id: UUID) {
         guard let index = recordsById[id], index < records.count else { return }
         records.remove(at: index)
@@ -176,24 +176,24 @@ public final class TrafficStore: ObservableObject {
         updateCounts()
     }
 
-    /// Получить записи с фильтром
+    /// Get records matching a filter
     public func records(matching filter: TrafficFilter) -> [TrafficRecord] {
         filter.apply(to: records)
     }
 
-    /// Получить последние N записей
+    /// Get the last N records
     public func lastRecords(_ count: Int) -> [TrafficRecord] {
         Array(records.suffix(count))
     }
 
-    /// Получить записи за период
+    /// Get records within a time range
     public func records(from: Date, to: Date) -> [TrafficRecord] {
         records.filter { $0.timestamp >= from && $0.timestamp <= to }
     }
 
     // MARK: - AsyncStream
 
-    /// AsyncStream для получения новых записей
+    /// AsyncStream for receiving new records
     public func recordsStream() -> AsyncStream<TrafficRecord> {
         AsyncStream { continuation in
             let callback = self.onNewRecord
@@ -231,7 +231,7 @@ public final class TrafficStore: ObservableObject {
 // MARK: - Export
 
 extension TrafficStore {
-    /// Экспортировать записи в формате
+    /// Export records in the specified format
     public func export(format: ExportFormat, filter: TrafficFilter? = nil) -> Data? {
         let recordsToExport = filter?.apply(to: records) ?? records
 
@@ -247,7 +247,7 @@ extension TrafficStore {
     }
 }
 
-/// Формат экспорта
+/// Export format
 public enum ExportFormat: String, CaseIterable, Sendable {
     case json
     case har

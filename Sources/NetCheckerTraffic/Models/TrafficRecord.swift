@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - WebSocket
 
-/// Сообщение WebSocket
+/// WebSocket message
 public struct WebSocketMessage: Codable, Sendable, Hashable, Identifiable {
     public let id: UUID
     public let timestamp: Date
@@ -31,7 +31,7 @@ public struct WebSocketMessage: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
-/// Состояние записи трафика
+/// Traffic record state
 public enum TrafficRecordState: Codable, Sendable, Hashable {
     case pending
     case completed
@@ -69,52 +69,52 @@ public enum TrafficRecordState: Codable, Sendable, Hashable {
     }
 }
 
-/// Полная запись сетевого запроса
+/// Full network request record
 public struct TrafficRecord: Codable, Sendable, Identifiable, Hashable {
     // MARK: - Identity
 
-    /// Уникальный идентификатор
+    /// Unique identifier
     public let id: UUID
 
-    /// Временная метка начала запроса
+    /// Request start timestamp
     public let timestamp: Date
 
     // MARK: - State
 
-    /// Общая длительность запроса
+    /// Total request duration
     public var duration: TimeInterval
 
-    /// Состояние записи
+    /// Record state
     public var state: TrafficRecordState
 
     // MARK: - Request/Response
 
-    /// Данные запроса
+    /// Request data
     public let request: RequestData
 
-    /// Данные ответа (nil если pending/failed)
+    /// Response data (nil if pending/failed)
     public var response: ResponseData?
 
     // MARK: - Timing & Security
 
-    /// Детальные тайминги
+    /// Detailed timings
     public var timings: RequestTimings?
 
-    /// Информация о безопасности
+    /// Security information
     public var security: SecurityInfo?
 
     // MARK: - Error & Metadata
 
-    /// Ошибка (если state == .failed)
+    /// Error (if state == .failed)
     public var error: TrafficError?
 
-    /// Метаданные
+    /// Metadata
     public var metadata: TrafficMetadata
 
-    /// История редиректов
+    /// Redirect history
     public var redirects: [RedirectHop]
 
-    /// WebSocket сообщения
+    /// WebSocket messages
     public var webSocketMessages: [WebSocketMessage] = []
 
     // MARK: - Initialization
@@ -145,7 +145,7 @@ public struct TrafficRecord: Codable, Sendable, Identifiable, Hashable {
         self.redirects = redirects
     }
 
-    /// Создать из URLRequest
+    /// Create from URLRequest
     public init(from urlRequest: URLRequest) {
         self.id = UUID()
         self.timestamp = Date()
@@ -162,37 +162,37 @@ public struct TrafficRecord: Codable, Sendable, Identifiable, Hashable {
 
     // MARK: - Computed Properties
 
-    /// URL запроса
+    /// Request URL
     public var url: URL {
         request.url
     }
 
-    /// HTTP-метод
+    /// HTTP method
     public var method: HTTPMethod {
         request.method
     }
 
-    /// Статус-код ответа
+    /// Response status code
     public var statusCode: Int? {
         response?.statusCode
     }
 
-    /// Категория статуса
+    /// Status category
     public var statusCategory: StatusCategory? {
         response?.statusCategory
     }
 
-    /// Хост
+    /// Host
     public var host: String {
         metadata.host
     }
 
-    /// Путь
+    /// Path
     public var path: String {
         metadata.path
     }
 
-    /// Является ли запрос успешным
+    /// Whether the request succeeded
     public var isSuccess: Bool {
         if case .completed = state {
             return response?.isSuccess ?? false
@@ -200,33 +200,33 @@ public struct TrafficRecord: Codable, Sendable, Identifiable, Hashable {
         return false
     }
 
-    /// Является ли запрос ошибкой
+    /// Whether the request is an error
     public var isError: Bool {
         if case .failed = state { return true }
         return response?.isError ?? false
     }
 
-    /// Форматированная длительность
+    /// Formatted duration
     public var formattedDuration: String {
         formatDuration(duration)
     }
 
-    /// Размер запроса
+    /// Request size
     public var requestSize: Int64 {
         request.bodySize
     }
 
-    /// Размер ответа
+    /// Response size
     public var responseSize: Int64 {
         response?.bodySize ?? 0
     }
 
-    /// Общий размер
+    /// Total size
     public var totalSize: Int64 {
         requestSize + responseSize
     }
 
-    /// Форматированный размер ответа
+    /// Formatted response size
     public var formattedResponseSize: String {
         ByteCountFormatter.string(fromByteCount: responseSize, countStyle: .file)
     }
@@ -237,12 +237,12 @@ public struct TrafficRecord: Codable, Sendable, Identifiable, Hashable {
         "\(id.uuidString)-\(state.displayName)-\(statusCode ?? 0)"
     }
 
-    /// Краткое описание для списка
+    /// Short description for list display
     public var shortDescription: String {
         "\(method.rawValue) \(path)"
     }
 
-    /// Полное описание
+    /// Full description
     public var fullDescription: String {
         var desc = "\(method.rawValue) \(url.absoluteString)"
         if let status = statusCode {
@@ -254,7 +254,7 @@ public struct TrafficRecord: Codable, Sendable, Identifiable, Hashable {
 
     // MARK: - Mutating Methods
 
-    /// Завершить запрос с ответом
+    /// Complete the request with a response
     public mutating func complete(
         with response: ResponseData,
         timings: RequestTimings? = nil,
@@ -267,30 +267,30 @@ public struct TrafficRecord: Codable, Sendable, Identifiable, Hashable {
         self.state = .completed
     }
 
-    /// Пометить как неудавшийся
+    /// Mark as failed
     public mutating func fail(with error: Error) {
         self.error = TrafficError(from: error)
         self.duration = Date().timeIntervalSince(timestamp)
         self.state = .failed(self.error!)
     }
 
-    /// Пометить как отмененный
+    /// Mark as cancelled
     public mutating func cancel() {
         self.duration = Date().timeIntervalSince(timestamp)
         self.state = .cancelled
     }
 
-    /// Пометить как мок
+    /// Mark as mocked
     public mutating func markAsMocked() {
         self.state = .mocked
     }
 
-    /// Добавить редирект
+    /// Add a redirect hop
     public mutating func addRedirect(_ hop: RedirectHop) {
         redirects.append(hop)
     }
 
-    /// Добавить сообщение WebSocket
+    /// Add a WebSocket message
     public mutating func addWebSocketMessage(_ message: WebSocketMessage) {
         webSocketMessages.append(message)
     }

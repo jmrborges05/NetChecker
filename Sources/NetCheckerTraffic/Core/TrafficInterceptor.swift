@@ -1,28 +1,28 @@
 import Foundation
 import Combine
 
-/// Главный класс для управления перехватом трафика
+/// Main class for managing traffic interception
 @MainActor
 public final class TrafficInterceptor: ObservableObject {
     // MARK: - Singleton
 
-    /// Общий экземпляр
+    /// Shared instance
     public static let shared = TrafficInterceptor()
 
     // MARK: - Published Properties
 
-    /// Запущен ли перехват
+    /// Whether interception is running
     @Published public private(set) var isRunning: Bool = false
 
-    /// Количество перехваченных запросов
+    /// Number of intercepted requests
     @Published public private(set) var requestCount: Int = 0
 
-    /// Количество ошибок
+    /// Number of errors
     @Published public private(set) var errorCount: Int = 0
 
     // MARK: - Configuration
 
-    /// Текущая конфигурация
+    /// Current configuration
     public private(set) var configuration: InterceptorConfiguration = .default
 
     // MARK: - Engines
@@ -36,7 +36,7 @@ public final class TrafficInterceptor: ObservableObject {
     /// Environment store
     public let environmentStore = EnvironmentStore.shared
 
-    /// MCP сервер
+    /// MCP server
     public let mcpServer = MCPServer.shared
 
     // MARK: - Private Properties
@@ -51,19 +51,19 @@ public final class TrafficInterceptor: ObservableObject {
 
     // MARK: - Public Methods
 
-    /// Запустить перехват с конфигурацией по умолчанию
+    /// Start interception with default configuration
     public func start() {
         start(configuration: .default)
     }
 
-    /// Запустить перехват с указанным уровнем
+    /// Start interception with the specified level
     public func start(level: InterceptionLevel) {
         var config = InterceptorConfiguration.default
         config.level = level
         start(configuration: config)
     }
 
-    /// Запустить перехват с указанной конфигурацией
+    /// Start interception with the specified configuration
     public func start(configuration: InterceptorConfiguration) {
         guard !isRunning else {
             print("[NetChecker] Traffic interception is already running")
@@ -95,7 +95,7 @@ public final class TrafficInterceptor: ObservableObject {
             break
         }
 
-        // Автостарт MCP-сервера если включён в конфигурации
+        // Auto-start MCP server if enabled in configuration
         if configuration.mcp.enabled {
             mcpServer.start(port: configuration.mcp.port)
         }
@@ -104,11 +104,11 @@ public final class TrafficInterceptor: ObservableObject {
         print("[NetChecker] Traffic interception started (level: \(configuration.level.rawValue))")
     }
 
-    /// Остановить перехват
+    /// Stop interception
     public func stop() {
         guard isRunning else { return }
 
-        // Остановить MCP-сервер если он запущен
+        // Stop MCP server if running
         if mcpServer.isRunning {
             mcpServer.stop()
         }
@@ -130,33 +130,33 @@ public final class TrafficInterceptor: ObservableObject {
         print("[NetChecker] Traffic interception stopped")
     }
 
-    /// Очистить все записи
+    /// Clear all records
     public func clearRecords() {
         TrafficStore.shared.clear()
         requestCount = 0
         errorCount = 0
     }
 
-    /// Получить классы протоколов для ручной настройки
+    /// Get protocol classes for manual session configuration
     public static func protocolClasses() -> [AnyClass] {
         [NetCheckerURLProtocol.self]
     }
 
     // MARK: - MCP Management
 
-    /// Запустить MCP-сервер для приёма логов от AI-инструментов
+    /// Start the MCP server to receive logs from AI tools
     public func startMCP(port: UInt16 = 9876) {
         mcpServer.start(port: port)
     }
 
-    /// Остановить MCP-сервер
+    /// Stop the MCP server
     public func stopMCP() {
         mcpServer.stop()
     }
 
     // MARK: - Environment Management
 
-    /// Добавить группу окружений
+    /// Add an environment group
     public func addEnvironment(
         group: String,
         source: String,
@@ -171,12 +171,12 @@ public final class TrafficInterceptor: ObservableObject {
         )
     }
 
-    /// Переключить окружение
+    /// Switch active environment
     public func switchEnvironment(group: String, to environmentName: String) {
         environmentStore.switchEnvironment(group: group, to: environmentName)
     }
 
-    /// Quick override для хоста
+    /// Quick override for a host
     public func override(
         host: String,
         with newHost: String,
@@ -189,12 +189,12 @@ public final class TrafficInterceptor: ObservableObject {
         )
     }
 
-    /// Удалить override для хоста
+    /// Remove host override
     public func removeOverride(for host: String) {
         environmentStore.removeQuickOverride(for: host)
     }
 
-    /// Получить переменную окружения
+    /// Get an environment variable value
     public func variable(_ key: String) -> String? {
         environmentStore.variable(key)
     }
@@ -219,28 +219,28 @@ public final class TrafficInterceptor: ObservableObject {
 // MARK: - Convenience Extensions
 
 public extension TrafficInterceptor {
-    /// Запустить с фильтром по хостам
+    /// Start with a host filter
     func start(hosts: Set<String>) {
         var config = InterceptorConfiguration.default
         config.captureHosts = hosts
         start(configuration: config)
     }
 
-    /// Запустить с игнорированием хостов
+    /// Start while ignoring specified hosts
     func start(ignoring hosts: Set<String>) {
         var config = InterceptorConfiguration.default
         config.ignoreHosts = hosts
         start(configuration: config)
     }
 
-    /// Включить SSL bypass для хостов
+    /// Enable SSL bypass for specified hosts
     func allowSelfSignedCertificates(for hosts: Set<String>) {
         var config = configuration
         config.ssl.trustMode = .allowSelfSigned(hosts: hosts)
         self.configuration = config
     }
 
-    /// Включить режим прокси (Charles/Proxyman)
+    /// Enable proxy mode (Charles/Proxyman)
     func enableProxyMode(for hosts: Set<String>) {
         var config = configuration
         config.ssl.trustMode = .allowProxy(proxyHosts: hosts)
