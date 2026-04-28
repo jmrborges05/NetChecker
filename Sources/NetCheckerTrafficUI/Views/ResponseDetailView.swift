@@ -6,7 +6,6 @@ public struct NetCheckerTrafficUI_ResponseDetailView: View {
     let record: TrafficRecord
 
     @State private var showRawHeaders = false
-    @State private var showFormattedBody = true
 
     public init(record: TrafficRecord) {
         self.record = record
@@ -119,11 +118,7 @@ public struct NetCheckerTrafficUI_ResponseDetailView: View {
 
                 NetCheckerTrafficUI_SizeIndicator(bytes: response.bodySize)
 
-                if response.contentType == .json || response.contentType == .xml {
-                    Toggle("Format", isOn: $showFormattedBody)
-                        .toggleStyle(.button)
-                        .font(.caption)
-                }
+
 
                 if let bodyString = response.bodyString {
                     NetCheckerTrafficUI_CopyButton(text: bodyString, label: "Copy")
@@ -155,11 +150,9 @@ public struct NetCheckerTrafficUI_ResponseDetailView: View {
     private func jsonBodyView(_ response: ResponseData) -> some View {
         Group {
             if let bodyString = response.bodyString {
-                let displayString = showFormattedBody
-                    ? (JSONFormatter.format(bodyString) ?? bodyString)
-                    : bodyString
+                let formatted = JSONFormatter.format(bodyString) ?? bodyString
 
-                NetCheckerTrafficUI_JSONSyntaxView(json: displayString, maxLines: 50)
+                NetCheckerTrafficUI_JSONSyntaxView(json: formatted, maxLines: 50)
                     .padding()
                     .background(Color.gray.opacity(0.15))
                     .cornerRadius(8)

@@ -1,10 +1,10 @@
 import Foundation
 
-/// URLProtocol для перехвата HTTP/HTTPS запросов
+/// URLProtocol for intercepting HTTP/HTTPS requests
 public final class NetCheckerURLProtocol: URLProtocol {
     // MARK: - Constants
 
-    /// Ключ для маркировки обработанных запросов
+    /// Key for marking already-handled requests
     private static let handledKey = "NetCheckerHandled"
 
     // MARK: - Thread-Safe State
@@ -50,6 +50,23 @@ public final class NetCheckerURLProtocol: URLProtocol {
     private var startTime: Date = Date()
     private var recordId: UUID?
 
+    /// Thread-safe flag for response breakpoint (written on MainActor, read on URLSession delegate queue)
+    private var _shouldPauseOnResponse: Bool = false
+    private let responsePauseLock = NSLock()
+
+    private var shouldPauseOnResponse: Bool {
+        get {
+            responsePauseLock.lock()
+            defer { responsePauseLock.unlock() }
+            return _shouldPauseOnResponse
+        }
+        set {
+            responsePauseLock.lock()
+            defer { responsePauseLock.unlock() }
+            _shouldPauseOnResponse = newValue
+        }
+    }
+
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.default
         config.protocolClasses = [] // Prevent recursion
@@ -59,6 +76,18 @@ public final class NetCheckerURLProtocol: URLProtocol {
     // MARK: - URLProtocol Override
 
     public override class func canInit(with request: URLRequest) -> Bool {
+        print("URLProtocol checking: \(request.url?.absoluteString ?? "")")
+        print("Headers: \(request.allHTTPHeaderFields ?? [:])")
+        // Skip WebSockets (they are handled by WebSocketInspector swizzling)
+        if let scheme = request.url?.scheme?.lowercased(), scheme == "ws" || scheme == "wss" {
+            return false
+        }
+        
+        // URLSession converts ws/wss to http/https and adds Upgrade headers
+        if let upgrade = request.value(forHTTPHeaderField: "Upgrade")?.lowercased(), upgrade == "websocket" {
+            return false
+        }
+        
         // Skip already handled requests
         if URLProtocol.property(forKey: handledKey, in: request) != nil {
             return false
@@ -195,6 +224,11 @@ public final class NetCheckerURLProtocol: URLProtocol {
                 }
             }
 
+            // Check if we need to pause on response
+            if BreakpointEngine.shared.shouldPauseResponse(request: mutableRequest as URLRequest) {
+                self.shouldPauseOnResponse = true
+            }
+
             // Start the actual request on the URL loading queue
             self.dataTask = self.session.dataTask(with: mutableRequest as URLRequest)
             self.dataTask?.resume()
@@ -255,13 +289,19 @@ extension NetCheckerURLProtocol: URLSessionDataDelegate {
         completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
     ) {
         receivedResponse = response as? HTTPURLResponse
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        // If response breakpoint is pending, don't forward to client yet
+        if !shouldPauseOnResponse {
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        }
         completionHandler(.allow)
     }
 
     public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         receivedData.append(data)
-        client?.urlProtocol(self, didLoad: data)
+        // If response breakpoint is pending, accumulate data but don't forward yet
+        if !shouldPauseOnResponse {
+            client?.urlProtocol(self, didLoad: data)
+        }
     }
 
     public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
@@ -273,6 +313,46 @@ extension NetCheckerURLProtocol: URLSessionDataDelegate {
                 }
             }
             client?.urlProtocol(self, didFailWithError: error)
+        } else if shouldPauseOnResponse {
+            // Response breakpoint: pause before delivering response to client
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+
+                let result = await BreakpointEngine.shared.pause(request: self.request, phase: .response)
+
+                if result != nil {
+                    // User resumed — deliver the held response to client
+                    if let response = self.receivedResponse {
+                        self.client?.urlProtocol(self, didReceive: response as URLResponse, cacheStoragePolicy: .notAllowed)
+                    }
+                    if !self.receivedData.isEmpty {
+                        self.client?.urlProtocol(self, didLoad: self.receivedData)
+                    }
+                    self.client?.urlProtocolDidFinishLoading(self)
+
+                    // Update traffic record
+                    if let id = self.recordId, let response = self.receivedResponse {
+                        let config = Self.configSnapshot
+                        let body = config.captureResponseBody ? self.receivedData : nil
+                        TrafficStore.shared.complete(
+                            id: id,
+                            response: ResponseData(from: response, body: body),
+                            timings: nil
+                        )
+                    }
+                } else {
+                    // User cancelled — deliver error instead
+                    let cancelError = NSError(
+                        domain: NSURLErrorDomain,
+                        code: NSURLErrorCancelled,
+                        userInfo: [NSLocalizedDescriptionKey: "Response cancelled by breakpoint"]
+                    )
+                    if let id = self.recordId {
+                        TrafficStore.shared.fail(id: id, error: cancelError)
+                    }
+                    self.client?.urlProtocol(self, didFailWithError: cancelError)
+                }
+            }
         } else {
             // Update record with response
             if let id = recordId, let response = receivedResponse {

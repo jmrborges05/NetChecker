@@ -6,6 +6,7 @@ public struct NetCheckerTrafficUI_TrafficStatisticsView: View {
     let records: [TrafficRecord]
 
     @State private var selectedTimeRange: TimeRange = .all
+    @SwiftUI.Environment(\.dismiss) private var dismiss
 
     public init(records: [TrafficRecord]) {
         self.records = records
@@ -77,6 +78,15 @@ public struct NetCheckerTrafficUI_TrafficStatisticsView: View {
             .padding()
         }
         .navigationTitle("Statistics")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                }
+            }
+        }
     }
 
     // MARK: - Overview Cards

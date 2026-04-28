@@ -26,7 +26,17 @@ public struct NetCheckerTrafficUI_TrafficDetailView: View {
             // Tab picker
             Picker("View", selection: $selectedTab) {
                 Text("Request").tag(0)
-                Text("Response").tag(1)
+                
+                let isWebSocket = !record.webSocketMessages.isEmpty || record.url.scheme?.lowercased().starts(with: "ws") == true
+                
+                if !isWebSocket {
+                    Text("Response").tag(1)
+                }
+                
+                if isWebSocket {
+                    Text("WebSocket").tag(4)
+                }
+                
                 Text("Timing").tag(2)
                 if record.security != nil {
                     Text("Security").tag(3)
@@ -48,6 +58,8 @@ public struct NetCheckerTrafficUI_TrafficDetailView: View {
                     if record.security != nil {
                         NetCheckerTrafficUI_SecurityDetailView(record: record)
                     }
+                case 4:
+                    NetCheckerTrafficUI_WebSocketDetailView(record: record)
                 default:
                     NetCheckerTrafficUI_RequestDetailView(record: record)
                 }
@@ -58,6 +70,14 @@ public struct NetCheckerTrafficUI_TrafficDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                }
+            }
+
             ToolbarItem(placement: .primaryAction) {
                 ExportMenuButton(record: record)
             }
