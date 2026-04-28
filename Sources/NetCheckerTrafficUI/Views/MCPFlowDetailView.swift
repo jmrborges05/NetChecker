@@ -10,6 +10,7 @@ public struct MCPFlowDetailView: View {
     @State private var exportedCode = ""
     @State private var showingCodeSheet = false
     @State private var mockRulesApplied = false
+    @SwiftUI.Environment(\.dismiss) private var dismiss
 
     public init(flow: MCPFlow) {
         self.flow = flow
@@ -26,6 +27,15 @@ public struct MCPFlowDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                }
+            }
+        }
         .sheet(isPresented: $showingCodeSheet) {
             codeSheet
         }
